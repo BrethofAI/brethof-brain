@@ -1,0 +1,39 @@
+# BRETHOF BRAIN — the storage: ONE container holding the memory (2026-11-17).
+# Build context: the repository root.
+#
+# Postgres 18 + pgvector inside a gocryptfs-encrypted directory (the
+# passphrase is only ever the customer's), and the memory's API beside it.
+# Postgres listens on 127.0.0.1 only — the API is its one client — and the
+# API is reached only by the hub, on the hub's private network.
+FROM docker.io/library/python:3.12-slim
+# uid/gid 999 for postgres, as in the official Postgres image the earlier
+# brain-db was built on: the encrypted files of an existing memory belong
+# to 999, and a different uid cannot open them (found 2026-11-17).
+RUN groupadd -r postgres --gid=999 && useradd -r -g postgres --uid=999 --home-dir=/var/lib/postgresql postgres
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+ && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+ && . /etc/os-release \
+ && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-18 postgresql-18-pgvector gocryptfs fuse3 \
+ && apt-get purge -y curl gnupg && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
+ENV PATH=/usr/lib/postgresql/18/bin:$PATH
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY core/ ./core/
+COPY api/ ./api/
+# The storage judges nothing: every prompt lives in the hub.
+RUN rm -f core/prompts.py && find /app -name '__pycache__' -type d -prune -exec rm -rf {} + || true
+COPY deploy/selfhosted/db-entrypoint.sh /usr/local/bin/db-entrypoint.sh
+COPY deploy/local/storage-entrypoint.sh /usr/local/bin/storage-entrypoint.sh
+RUN chmod 755 /usr/local/bin/db-entrypoint.sh /usr/local/bin/storage-entrypoint.sh \
+ && useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin app
+ENV PYTHONDONTWRITEBYTECODE=1 BRAIN_PG_HOST=127.0.0.1 BRAIN_PG_PORT=5432 \
+    BRAIN_MODE=selfhosted BRAIN_HUB_URL=http://brain-hub:8601
+EXPOSE 8610
+ENTRYPOINT ["/usr/local/bin/storage-entrypoint.sh"]

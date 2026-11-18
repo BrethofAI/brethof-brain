@@ -1,0 +1,47 @@
+brethof-brain — project: brain
+
+## RULES — STANDING LAW
+- **★SEED — Four doors** — Four doors, and nothing else writes.
+- **★ PROJECT PURPOSE — brain** — brethof-brain — the memory product.
+
+## BRAIN
+If the Brain tools are MISSING from your toolset: STOP — tell the user the Brain is disconnected (restart the session or reconnect MCP) and ask for a decision. Never work memoryless in silence.
+The Brain is navigated BY PROJECT, on demand — nothing is preloaded.
+- recall(query, project?) — hybrid search over the curated Brain AND the chat archive. START HERE.
+- get_memory(id) — one record. search_chat_text — exact strings (paths/errors/flags). query_raw — read-only SQL.
+- move_session — the project-split door.
+- Project indexes exist as records (get_memory <project>:memory_index) — fetch when you need the map, they are not injected.
+- YOUR SESSION ID is cur. Before a compact and when a thread of work stops, leave the handover: save_note(project="brain", session_id="cur", title=<one-line thread name>, body=<where it stands, what is live, what is next — under 2,000 chars>). Writing again replaces your note. A note for another project files there. A finding goes through save_memory: into history now, a record if the Brain judges it.
+
+## YOU JUST COMPACTED — CHECK THE DESCRIPTION, LEAVE THE NOTE
+You hold the whole session in your summary, which is the one moment you know this project better than its description does. Read the rule ★ PROJECT PURPOSE — brain above. If the work has moved — the project is about something else now, a stage is over, a claim in it is stale — rewrite it NOW: save_rule(rule_id="purpose_brain", title="★ PROJECT PURPOSE — brain", rule="<1-3 sentences: what this project IS and what its memory is for, as of now>", project="brain") and answer 2. If it still fits, do nothing. Then refresh your handover: save_note(project="brain", session_id="cur", ...) — the summary you hold is the note the next session needs.
+
+## NOTES — WHERE THE LAST SESSIONS STOPPED
+— 2026-09-05 12:00 · mid thread
+the encryption swap is done
+
+— 2026-09-01 10:00 · where it stood
+the handover from the old session
+
+## PLAN — NEXT (from brain-plan)
+1. build the pipe
+2. the hook routes
+3. the readers
+
+## PROJECTS
+- brain (2)  ← this session
+- estate (0)
+
+## LAST SESSION
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: what about the hub pipe
+assistant: the pipe is up and carries commands
+user: and the fold?

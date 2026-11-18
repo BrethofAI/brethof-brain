@@ -1,0 +1,46 @@
+brethof-brain — project: brain
+
+## RULES — STANDING LAW
+- **★SEED — Four doors** — Four doors, and nothing else writes.
+- **★ PROJECT PURPOSE — brain** — brethof-brain — the memory product.
+
+## BRAIN
+This context comes from the Brain: it is handed in at session start and with every prompt, so the Brain is connected — work from it. If your harness also has the Brain tools below, use them for more; if one is missing or fails when you call it, tell the user once and carry on.
+The Brain is navigated BY PROJECT, on demand — nothing is preloaded.
+- search_brain(query_text, project?) — the Brain's saved knowledge, the current truth. START HERE.
+- search_history(query_text, project?) — the full raw conversation history, for detail the Brain does not hold.
+- get_record(record_id) — one record in full. list_brain / list_projects — browse.
+- YOUR SESSION ID is cur. Before a compact and when a thread of work stops, leave the handover: save_note(project="brain", session_id="cur", title=<one-line thread name>, body=<where it stands, what is live, what is next — under 2,000 chars>). Writing again replaces your note. A note for another project files there. A finding goes through save_memory: into history now, a record if the Brain judges it.
+
+## PROJECT DESCRIPTION — YOURS TO KEEP CURRENT
+The rule ★ PROJECT PURPOSE — brain above is this project's description. It is the one thing that teaches the curator what to keep here, and nothing maintains it but the agent working in the project — you. When the work has moved, rewrite it: save_rule(rule_id="purpose_brain", title="★ PROJECT PURPOSE — brain", rule="<1-3 sentences: what this project IS and what its memory is for, as of now>", project="brain") and answer 2. Do it when you KNOW the project — late in a session or right after a compact — never from a first message. Never invent one: if you are unsure what the project is for, ask.
+
+## NOTES — WHERE THE LAST SESSIONS STOPPED
+— 2026-09-05 12:00 · mid thread
+the encryption swap is done
+
+— 2026-09-01 10:00 · where it stood
+the handover from the old session
+
+## PLAN — NEXT (from brain-plan)
+1. build the pipe
+2. the hook routes
+3. the readers
+
+## PROJECTS
+- brain (2)  ← this session
+- estate (0)
+
+## LAST SESSION
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: ok
+user: what about the hub pipe
+assistant: the pipe is up and carries commands
+user: and the fold?

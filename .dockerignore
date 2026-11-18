@@ -1,0 +1,20 @@
+# Bytecode must never enter an image. Two reasons, and the second one bit us:
+# stale .pyc can shadow source that was legitimately removed, and a .pyc holds
+# its string literals in plain, greppable form — so shipping __pycache__ leaked
+# every licensed prompt out of a customer image whose .py had been stripped
+# (measured 2026-08-28: prompts.cpython-312.pyc was present and readable in a
+# container built with BRAIN_SHIP_PROMPTS=0).
+__pycache__/
+*.pyc
+*.pyo
+
+.git/
+.pytest_cache/
+_gate_logs/
+tests/
+rig/
+scripts/
+docs/
+*.md
+.env
+.env.*

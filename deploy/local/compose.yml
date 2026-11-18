@@ -1,0 +1,113 @@
+# BRETHOF BRAIN — the whole memory on your own machine or server
+# (2026-11-17, local-first). Run ./install.sh once, then `docker compose up -d`.
+#
+#   brain-hub         THE ONLY DOOR. Every device (agent, harness, cloud
+#                     connection) talks to it with its own key, approved by you
+#                     on the settings page. It does all the thinking, with the
+#                     AI and decision models you connect on that page.
+#   brain-storage     the memory: Postgres + pgvector, encrypted on disk with a
+#                     passphrase only you hold, and the API the hub reaches it
+#                     through. Not published anywhere — only the hub can reach it.
+#   brain-embedder    turns text into vectors on this machine. Not published.
+#
+# Nothing here talks to Brethof except the hub's licence renewal (every 12 hours,
+# your hub id and how many devices are in use) — and the models you choose.
+services:
+  brain-hub:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.hub
+      args:
+        GATE_PUBKEY: ${GATE_PUBKEY:-}
+    image: ${BRAIN_HUB_IMAGE:-downloads.brethof.ai/brain-hub:${BRAIN_VERSION:-local}}
+    restart: ${BRAIN_RESTART:-unless-stopped}   # podman: on-failure + our own boot unit (get.sh)
+    environment:
+      HUB_NAME: ${HUB_NAME:-}
+      HUB_BOOT_STORAGE: main
+      HUB_BOOT_STORAGE_URL: http://brain-storage:8610
+      HUB_BOOT_STORAGE_KEY: ${BRAIN_STORAGE_KEY:?run ./install.sh first}
+    volumes:
+      # a named volume, not a folder: it takes the image's ownership, so the
+      # hub's unprivileged user can write it under Docker and rootless Podman
+      - hub-data:/srv/hub
+    ports:
+      # Loopback by default. On a VPS, put a tunnel or a TLS proxy in front, or
+      # set BRAIN_HUB_BIND=0.0.0.0 — every device still needs your approval.
+      - "${BRAIN_HUB_BIND:-127.0.0.1}:${BRAIN_HUB_PORT:-8600}:8600"
+    dns: ${BRAIN_DNS:-}
+    networks: [brain]
+    # the front door answering (2026-11-18: the hub had none; hub/healthcheck.py
+    # is the hosted hub's). Under podman the scheduled label can lie — `podman
+    # healthcheck run` gives the truth.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8600/health', timeout=5)"]
+      interval: 2m
+      timeout: 15s
+      retries: 3
+      start_period: 1m
+
+  brain-storage:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.storage
+    image: ${BRAIN_STORAGE_IMAGE:-downloads.brethof.ai/brain-storage:${BRAIN_VERSION:-local}}
+    restart: ${BRAIN_RESTART:-unless-stopped}   # podman: on-failure + our own boot unit (get.sh)
+    depends_on:
+      brain-embedder: {condition: service_started}
+    # Mounting the encrypted directory inside the container needs FUSE and a
+    # (namespaced) SYS_ADMIN; Postgres needs more than 64 MB of /dev/shm.
+    shm_size: 1g
+    devices: [/dev/fuse]
+    cap_add: [SYS_ADMIN]
+    security_opt: [apparmor=unconfined]
+    environment:
+      POSTGRES_USER: brain
+      POSTGRES_PASSWORD: ${BRAIN_DB_PASSWORD:?run ./install.sh first}
+      BRAIN_PASSPHRASE_FILE: /run/brain/passphrase
+      BRAIN_MODE: selfhosted
+      BRAIN_V2_KEYS_FILE: /keys/v2keys
+      BRAIN_PG_USER: brain
+      BRAIN_PG_PASS: ${BRAIN_DB_PASSWORD}
+      BRAIN_EMBEDDER_URL: http://brain-embedder:8202
+      BRAIN_EMBED_DIM: "768"
+      BRAIN_RETIRE_BACKLOG: "on"
+      BRAIN_GRAPH_MOVEMENTS: live
+      # the hub, on the private network; the same key both ways
+      BRAIN_HUB_URL: http://brain-hub:8601
+      BRAIN_HUB_KEY: ${BRAIN_STORAGE_KEY:?run ./install.sh first}
+    volumes:
+      - ${BRAIN_DATA_DIR:-./data}:/cipher
+      - ./secrets/passphrase:/run/brain/passphrase:ro
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "python", "/app/api/healthcheck.py"]
+      interval: 2m
+      timeout: 15s
+      retries: 3
+      # the FIRST start creates the encrypted store and runs initdb through
+      # it: about 1.5 minutes on studio (2026-11-17); slow disks take longer
+      start_period: 5m
+    networks: [brain]
+
+  brain-embedder:
+    build:
+      context: ../../embedder
+      dockerfile: Dockerfile
+    image: ${BRAIN_EMBEDDER_IMAGE:-downloads.brethof.ai/brain-embedder:${BRAIN_VERSION:-local}}
+    restart: ${BRAIN_RESTART:-unless-stopped}   # podman: on-failure + our own boot unit (get.sh)
+    user: "10001:10001"
+    environment:
+      EMBED_MODEL_DIR: /model
+      EMBED_MAX_SLOTS: ${BRAIN_EMBED_SLOTS:-4}
+      EMBED_RESERVED_INTERACTIVE: "1"
+      EMBED_THREADS: "0"
+    volumes:
+      - ${BRAIN_MODEL_DIR:?set BRAIN_MODEL_DIR to the fp32 ONNX export}:/model:ro
+    networks: [brain]
+
+volumes:
+  hub-data:
+
+networks:
+  brain:
+    driver: bridge

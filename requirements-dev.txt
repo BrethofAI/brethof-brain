@@ -1,0 +1,8 @@
+# The storage's packages, the hub's (as pinned in deploy/local/Dockerfile.hub),
+# and the test runner.
+-r requirements.txt
+websockets==15.0.1
+httpx==0.28.1
+cryptography==45.0.7
+python-multipart==0.0.20
+pytest
