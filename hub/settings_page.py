@@ -13,7 +13,7 @@ main{max-width:860px;margin:0 auto;padding:24px 16px 64px}h1{font-size:22px;marg
 .sub{color:var(--mut);margin:0 0 20px}section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:0 0 16px}
 h2{font-size:16px;margin:0 0 10px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:7px 6px;border-top:1px solid var(--line);vertical-align:top}
 th{color:var(--mut);font-weight:500;border-top:0;font-size:13px}button{font:inherit;padding:6px 12px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
-button.p{background:var(--acc);border-color:var(--acc);color:#fff}button.d{color:var(--bad)}input,select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg);width:100%}
+button.p,a.p{background:var(--acc);border-color:var(--acc);color:#fff}a.btn{display:inline-block;text-decoration:none;font:inherit;padding:6px 12px;border-radius:7px;border:1px solid var(--line)}button.d{color:var(--bad)}input,select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg);width:100%}
 label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:600px){.row{grid-template-columns:1fr}}
 .code{font:600 18px ui-monospace,monospace;letter-spacing:1px}.mut{color:var(--mut)}.ok{color:var(--ok)}.bad{color:var(--bad)}.note{font-size:13px;color:var(--mut);margin-top:8px}
 .msg{margin:8px 0 0;font-size:14px}.hide{display:none}.chk{display:inline-flex;gap:4px;align-items:center;margin-right:10px;width:auto}.chk input{width:auto}
@@ -58,7 +58,11 @@ label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}.row{displa
 <div class="row"><div><label>Another model service — name</label><input id="svcname" placeholder="mylab"></div>
 <div><label>Its base address (without /v1)</label><input id="svcurl" placeholder="https://models.example.com"></div></div>
 <p><button onclick="addSvc()">Add service</button></p></section>
-<p><button onclick="logout()">Sign out</button></p>
+<section><h2>Settings page login</h2><div id="loginbox"></div>
+<label for="newpw">New password (at least 12 characters)</label><input id="newpw" type="password" autocomplete="new-password">
+<p><button onclick="setPw()">Set password</button></p><p id="pwmsg" class="msg"></p>
+<p class="note">Forgot it? On the hub's machine: <code>docker exec $(docker compose ps -q brain-hub) python -m hub.local reset-password</code></p></section>
+<p id="signout"><button onclick="logout()">Sign out</button></p>
 </div>
 </main>
 <script>
@@ -69,6 +73,8 @@ async function api(p,b){const r=await fetch(p,{method:b===undefined?"GET":"POST"
  let j={};try{j=await r.json()}catch(e){}if(r.status===401&&p!=="/admin/login"){show(false)}return {ok:r.ok&&j.ok!==false,...j}}
 function show(on){$("login").classList.toggle("hide",on);$("app").classList.toggle("hide",!on)}
 async function login(){const r=await api("/admin/login",{password:$("pw").value});if(r.ok){load()}else $("loginmsg").textContent=r.why||"Wrong password"}
+async function setPw(){const r=await api("/admin/api/password",{password:$("newpw").value});$("newpw").value="";$("pwmsg").textContent=r.ok?"Password changed.":r.why;load()}
+async function setLogin(on){if(!on&&!confirm("Turn the settings login off? Anyone who can reach this page could approve devices and read the memory. Only do this if it can be opened from this machine alone, or you protect it yourself."))return;const r=await api("/admin/api/login",{on});if(!r.ok)alert(r.why);load()}
 async function logout(){await api("/admin/logout",{});show(false)}
 async function load(){const r=await api("/admin/api/state");if(!r.ok){show(false);return}S=r;show(true);render();apps()}
 function render(){
@@ -81,7 +87,12 @@ function render(){
  const L=S.licence;let h="";
  if(L.state==="none")h=`<p>This hub is not connected to a Brethof account yet. Connect it to approve devices (${5} are free).</p><button class="p" onclick="activate()">Connect to my account</button>`;
  else h=`<p>${L.state==="valid"?'<span class="ok">Active</span>':L.state==="expired"?'<span class="bad">Expired — approved devices keep working; new ones wait until it renews</span>':'<span class="bad">Not valid</span>'} · ${L.in_use} of ${L.devices} devices in use${L.expires?(L.refused?" · runs until ":" · renews before ")+when(L.expires):""}</p>${L.refused?`<p class="bad">${esc(L.refused)} Approved devices keep working; when it runs out, new devices cannot be approved.</p>`:""}<button onclick="renew()">Renew now</button>`;
+ if(L.state!=="none"&&L.refused)h+=` <button class="p" onclick="activate()">Connect to my account</button>`;
  $("licence").innerHTML=h;
+ const off=S.login==="off";
+ $("loginbox").innerHTML=off?`<p><span class="bad">Off</span>: anyone who can open this page can approve devices and change settings. Websites you visit still cannot.</p><button class="p" onclick="setLogin(true)">Turn the login on</button>`
+  :`<p><span class="ok">On</span>: this page asks for the settings password.</p><button onclick="setLogin(false)">Turn the login off</button>`;
+ $("signout").classList.toggle("hide",off);
  const M=S.models;for(const k of ["ai_url","ai_model","ai_reasoning","ai_extra","decision_url","decision_model"])$(k).value=M[k]||"";
  $("decision_style").value=M.decision_style||"";$("ai_key").placeholder=M.ai_key_set?"unchanged (set)":"not set";$("decision_key").placeholder=M.decision_key_set?"unchanged (set)":"not set";dec();
  $("memories").innerHTML="<table><tr><th>Name</th><th>Address</th></tr>"+S.memories.map(m=>`<tr><td>${esc(m.name)}</td><td class="mut">${esc(m.url)}</td></tr>`).join("")+"</table>";
@@ -105,9 +116,10 @@ async function addMemory(){const r=await api("/admin/api/memory/add",{name:$("mn
  $("memmsg").innerHTML=r.ok?`Added. Its key (shown once): <code>${esc(r.key)}</code><br>${esc(r.note)}`:esc(r.why);load()}
 async function renew(){const r=await api("/admin/api/renew",{});$("licmsg").textContent=r.ok?"Renewed.":r.why;load()}
 async function activate(){const r=await api("/admin/api/activate/start",{});if(!r.ok){$("licmsg").textContent=r.why;return}
- $("licence").innerHTML=`<p>Open <a href="${esc(r.verification_uri)}" target="_blank" rel="noopener">${esc(r.verification_uri)}</a>, sign in, and enter this code:</p><p class="code">${esc(r.user_code)}</p><p class="mut">Waiting…</p>`;
+ const go=r.verification_uri+"?code="+encodeURIComponent(r.user_code)+"&return="+encodeURIComponent(location.origin+"/settings");
+ $("licence").innerHTML=`<p><a class="btn p" href="${esc(go)}" target="_blank" rel="noopener">Open brethof.ai to approve</a></p><p>Sign in there and approve this code:</p><p class="code">${esc(r.user_code)}</p><p class="mut">Waiting… this page updates by itself once you approve.</p>`;
  const until=Date.now()+r.expires_in*1000;const tick=async()=>{const p=await api("/admin/api/activate/poll",{});
-  if(p.status==="ok"){$("licmsg").textContent="Connected.";load();return}if(p.status==="denied"||p.status==="expired"||Date.now()>until||!p.ok){$("licmsg").textContent="Not connected ("+(p.status||p.why)+"). Try again.";load();return}setTimeout(tick,(r.interval||5)*1000)};setTimeout(tick,(r.interval||5)*1000)}
+  if(p.status==="ok"){$("licmsg").textContent="Connected. Next: connect your first device (below).";load();return}if(p.status==="denied"||p.status==="expired"||Date.now()>until||!p.ok){$("licmsg").textContent="Not connected ("+(p.status||p.why)+"). Try again.";load();return}setTimeout(tick,(r.interval||5)*1000)};setTimeout(tick,(r.interval||5)*1000)}
 $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
 load();setInterval(()=>{if(S&&!$("app").classList.contains("hide"))api("/admin/api/state").then(r=>{if(r.ok&&JSON.stringify(r.pending)!==JSON.stringify(S.pending)){S=r;render()}})},5000);
 </script></body></html>"""

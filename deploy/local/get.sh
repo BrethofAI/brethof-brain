@@ -151,6 +151,36 @@ curl -fs "http://127.0.0.1:$PORT/health" >/dev/null || fail "the hub did not com
 HUB_CID=$($COMPOSE ps -q brain-hub 2>/dev/null | head -1)
 PW=$($ENGINE exec "$HUB_CID" cat /srv/hub/admin-token 2>/dev/null | tr -d '\r\n' || true)
 [ -n "$PW" ] || PW="(not readable yet — run: $ENGINE exec \$($COMPOSE ps -q brain-hub) cat /srv/hub/admin-token)"
+
+# CONNECT THE ACCOUNT, ONCE, NOW (founder 2026-11-19): the licence (5 free
+# devices) belongs to the Brethof account. On a desktop the browser opens on
+# the approve page; on a server the link and code are printed, to open on any
+# phone or laptop. BRAIN_SKIP_CONNECT=1 skips it; the settings page has the
+# same button.
+CONNECTED=""
+if [ -z "${BRAIN_SKIP_CONNECT:-}" ]; then
+  say "connect your Brethof account (sign in with Google or GitHub, then Approve)"
+  RET="http://127.0.0.1:$PORT/settings"
+  while IFS= read -r line; do
+    case "$line" in
+      LINK\ *)
+        LINK=${line#LINK }
+        if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v xdg-open >/dev/null 2>&1; then
+          xdg-open "$LINK" >/dev/null 2>&1 &
+          echo "  A browser window opened. If it didn't, open: $LINK"
+        elif [ "$(uname -s)" = Darwin ]; then
+          open "$LINK" >/dev/null 2>&1 &
+          echo "  A browser window opened. If it didn't, open: $LINK"
+        else
+          echo "  On any phone or computer, open: $LINK"
+        fi ;;
+      CODE\ *) echo "  and check the code shown there is: ${line#CODE }"
+                echo "  Waiting for you to approve (up to 15 minutes; Ctrl-C to do it later)…" ;;
+      CONNECTED*) CONNECTED=1; echo "  Connected: ${line#CONNECTED }." ;;
+      FAILED*) echo "  Not connected (${line#FAILED }). Do it later on the settings page: Connect to my account." ;;
+    esac
+  done < <($ENGINE exec "$HUB_CID" python -m hub.local connect "$RET" 2>&1 || true)
+fi
 cat <<TXT
 
   Brethof Brain $VERSION is running.
@@ -159,7 +189,7 @@ cat <<TXT
   Settings password:  $PW
     (keep it; to read it again: $ENGINE exec \$($COMPOSE ps -q brain-hub) cat /srv/hub/admin-token)
 
-  On the settings page: connect your Brethof account, then set your AI model.
+  On the settings page: $( [ -n "$CONNECTED" ] && echo "set your AI model." || echo "connect your Brethof account, then set your AI model.")
   Then connect this computer's agents:
       pip install "git+https://github.com/BrethofAI/brethof-brain-client.git" && brethof-brain pair http://127.0.0.1:$PORT
   (Other computers: open the hub to them first with BRAIN_HUB_BIND in $DIR/.env,

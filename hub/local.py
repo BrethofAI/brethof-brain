@@ -8,6 +8,8 @@ Two doors in one process, sharing one store:
 
     python -m hub.local                 run both
     python -m hub.local reset-password  new settings-page password
+    python -m hub.local connect         connect this hub to a Brethof account
+                                        (the installer runs it once)
 """
 from __future__ import annotations
 
@@ -113,7 +115,59 @@ def reset_password() -> None:
     print(f"new settings page password: {tok}\n(restart the hub for a running page to accept it)")
 
 
+def connect(return_url: str = "", wait_s: int = 900) -> int:
+    """Connect this hub to a Brethof account, through the running hub's own
+    settings API (2026-11-19: the installer does it once, at install time).
+    Prints `LINK <url>` and `CODE <code>` for the installer, then waits for
+    the owner to approve on brethof.ai. Exit 0 connected, 1 not."""
+    import json as _json
+    import urllib.request
+
+    port = os.environ.get("HUB_FRONT_PORT", "8600")
+    tok = open(os.environ.get("HUB_ADMIN_TOKEN_FILE", "/srv/hub/admin-token")).read().strip()
+
+    def call(path: str) -> dict:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/admin/api/{path}", data=b"{}",
+                                     headers={"authorization": "Bearer " + tok,
+                                              "content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return _json.loads(r.read())
+        except Exception as e:                                       # noqa: BLE001
+            return {"ok": False, "why": f"{type(e).__name__}: {e}"}
+
+    st = call("activate/poll")
+    if (st.get("licence") or {}).get("state") == "valid" and not (st.get("licence") or {}).get("refused"):
+        print("CONNECTED already", flush=True)
+        return 0
+    r = call("activate/start")
+    if not r.get("ok"):
+        print(f"FAILED could not start: {r.get('why')}", flush=True)
+        return 1
+    from urllib.parse import quote
+    link = f"{r['verification_uri']}?code={quote(r['user_code'])}"
+    if return_url:
+        link += "&return=" + quote(return_url, safe="")
+    print(f"LINK {link}", flush=True)
+    print(f"CODE {r['user_code']}", flush=True)
+    until = time.monotonic() + min(wait_s, int(r.get("expires_in") or 900))
+    while time.monotonic() < until:
+        time.sleep(int(r.get("interval") or 5))
+        p = call("activate/poll")
+        if p.get("status") == "ok":
+            lic = p.get("licence") or {}
+            print(f"CONNECTED {lic.get('devices')} devices", flush=True)
+            return 0
+        if p.get("status") in ("denied", "expired"):
+            print(f"FAILED {p['status']}", flush=True)
+            return 1
+    print("FAILED timed out", flush=True)
+    return 1
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["connect"]:
+        sys.exit(connect(sys.argv[2] if len(sys.argv) > 2 else ""))
     if sys.argv[1:] == ["reset-password"]:
         reset_password()
     else:

@@ -285,3 +285,49 @@ def test_a_client_id_url_on_the_owners_network_is_never_fetched(hub):
               "https://192.168.1.2/c", "https://[::1]/c", "https://169.254.169.254/c"):
         assert run(oauth._public_host(u)) is False, u
     assert run(oauth._client("https://127.0.0.1/c")) is None
+
+
+# ── the owner's login switch (founder 2026-11-19) ────────────────────────────
+def test_the_owner_sets_a_password_and_may_turn_the_login_off(hub):
+    c = hub["c"]
+    A = {"Authorization": "Bearer pw"}
+
+    async def go():
+        assert (await c.post("/admin/api/password", json={"password": "short"}, headers=A)).status_code == 400
+        assert (await c.post("/admin/api/password", json={"password": "a-long-own-password"}, headers=A)).json()["ok"]
+        assert (await c.get("/admin/api/state", headers=A)).status_code == 401          # the old one is gone
+        B = {"Authorization": "Bearer a-long-own-password"}
+        st = (await c.get("/admin/api/state", headers=B)).json()
+        assert st["ok"] and st["login"] == "on"
+        assert (await c.post("/admin/api/login", json={"on": False}, headers=B)).json()["login"] == "off"
+        # off: the page works with no password, from this machine
+        local = {"host": "127.0.0.1:8600"}
+        st = (await c.get("/admin/api/state", headers=local)).json()
+        assert st["ok"] and st["login"] == "off"
+        assert (await c.post("/admin/api/login", json={"on": True}, headers=local)).json()["login"] == "on"
+        c.cookies.clear()                      # setting the password signed this browser in
+        assert (await c.get("/admin/api/state", headers=local)).status_code == 401
+    run(go())
+
+
+def test_with_the_login_off_websites_still_cannot_drive_the_page(hub):
+    from hub import models
+    c = hub["c"]
+    run(models.set_many({"_admin_login": "off"}))
+
+    async def go():
+        # DNS rebinding: a page on someone's domain that resolves here
+        assert (await c.get("/admin/api/state", headers={"host": "evil.example:8600"})).status_code == 401
+        # a cross-site form posts text/plain, never JSON
+        r = await c.post("/admin/api/login", content=b'{"on": false}',
+                         headers={"host": "127.0.0.1:8600", "content-type": "text/plain"})
+        assert r.status_code == 401
+        # a JSON post from another origin
+        r = await c.post("/admin/api/login", json={"on": True},
+                         headers={"host": "127.0.0.1:8600", "origin": "https://evil.example"})
+        assert r.status_code == 401
+        # the page's own post goes through
+        r = await c.post("/admin/api/login", json={"on": True},
+                         headers={"host": "127.0.0.1:8600", "origin": "http://127.0.0.1:8600"})
+        assert r.json()["login"] == "on"
+    run(go())

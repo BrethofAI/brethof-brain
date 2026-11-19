@@ -124,7 +124,57 @@ async def _renewer() -> None:
 
 
 # ── admin auth ───────────────────────────────────────────────────────────
+# THE LOGIN IS THE OWNER'S TO SWITCH OFF (founder 2026-11-19): it guards the
+# page from the outside world only; the owner always has the container itself
+# (python -m hub.local reset-password). With it off, the page is still not
+# open to websites the owner happens to visit: a request is taken only when
+# its Host is this machine or a private address (or listed in
+# HUB_ADMIN_HOSTS), which stops DNS rebinding, and a POST only as JSON from
+# that same origin, which a cross-site form cannot send.
+ADMIN_HOSTS = {h.strip().lower() for h in os.environ.get("HUB_ADMIN_HOSTS", "").split(",") if h.strip()}
+
+
+def _login_off() -> bool:
+    return models.get("_admin_login") == "off"
+
+
+def _host_of(value: str) -> str:
+    v = (value or "").strip().lower()
+    if v.startswith("["):
+        return v[1:v.find("]")] if "]" in v else v
+    return v.rsplit(":", 1)[0] if v.count(":") == 1 else v
+
+
+def _own_host(host: str) -> bool:
+    import ipaddress
+    if host in ("localhost",) or host in ADMIN_HOSTS or host.endswith((".local", ".lan", ".internal")):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local
+
+
+def _same_site(request: Request) -> bool:
+    host = _host_of(request.headers.get("host", ""))
+    if not _own_host(host):
+        return False
+    if request.method in ("GET", "HEAD"):
+        return True
+    if not (request.headers.get("content-type", "").split(";")[0].strip().lower() == "application/json"):
+        return False
+    origin = request.headers.get("origin", "")
+    if origin:
+        from urllib.parse import urlparse
+        if _host_of(urlparse(origin).netloc) != host:
+            return False
+    return True
+
+
 def _is_admin(request: Request) -> bool:
+    if _login_off() and _same_site(request):
+        return True
     want = models.get("_admin_hash")
     if not want:
         return False
@@ -189,7 +239,43 @@ async def admin_state(request: Request) -> Response:
     return JSONResponse({"ok": True, "hub": {"id": gate.hub_id(), "name": HUB_NAME},
                          "licence": gate.licence(), "devices": gate.devices(),
                          "pending": gate.pending(), "memories": gate.storages(),
-                         "models": models.public()})
+                         "models": models.public(), "login": "off" if _login_off() else "on"})
+
+
+@front.post("/admin/api/password")
+async def admin_password(request: Request) -> Response:
+    """A settings password the owner chooses (replaces the installer's)."""
+    if not _is_admin(request):
+        return _deny()
+    try:
+        body = await _body(request)
+    except ValueError as e:
+        return _err(e)
+    pw = str(body.get("password") or "")
+    if len(pw) < 12:
+        return JSONResponse({"ok": False, "why": "use at least 12 characters"}, status_code=400)
+    await models.set_many({"_admin_hash": hashlib.sha256(pw.encode()).hexdigest()})
+    r = JSONResponse({"ok": True})
+    r.set_cookie(COOKIE, pw, httponly=True, samesite="strict",
+                 secure=request.url.scheme == "https", max_age=30 * 86400)
+    return r
+
+
+@front.post("/admin/api/login")
+async def admin_login_switch(request: Request) -> Response:
+    """On or off. Off is the owner's call for a page only they can reach, or
+    one they protect themselves; the container is always the way back in."""
+    if not _is_admin(request):
+        return _deny()
+    try:
+        body = await _body(request)
+    except ValueError as e:
+        return _err(e)
+    on = bool(body.get("on"))
+    if on and not models.get("_admin_hash"):
+        return JSONResponse({"ok": False, "why": "set a password first"}, status_code=400)
+    await models.set_many({"_admin_login": "on" if on else "off"})
+    return JSONResponse({"ok": True, "login": "on" if on else "off"})
 
 
 async def _admin_call(request: Request, fn):
