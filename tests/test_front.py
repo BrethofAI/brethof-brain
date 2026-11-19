@@ -39,6 +39,7 @@ def hub(tmp_path, monkeypatch):
     import gate
     monkeypatch.setattr(store, "DB_PATH", str(tmp_path / "hub.sqlite"))
     monkeypatch.setattr(store, "_conn", None)
+    monkeypatch.setattr(front, "ADMIN_TOKEN_FILE", str(tmp_path / "admin-token"))
     store.apply_schema(open("hub/schema.sql", encoding="utf-8").read())
     gate.init(str(tmp_path / "gate.sqlite"))
     run(models.load())
@@ -296,6 +297,8 @@ def test_the_owner_sets_a_password_and_may_turn_the_login_off(hub):
         assert (await c.post("/admin/api/password", json={"password": "short"}, headers=A)).status_code == 400
         assert (await c.post("/admin/api/password", json={"password": "a-long-own-password"}, headers=A)).json()["ok"]
         assert (await c.get("/admin/api/state", headers=A)).status_code == 401          # the old one is gone
+        from hub import front as _f
+        assert open(_f.ADMIN_TOKEN_FILE).read().startswith("#")   # the old file no longer claims it
         B = {"Authorization": "Bearer a-long-own-password"}
         st = (await c.get("/admin/api/state", headers=B)).json()
         assert st["ok"] and st["login"] == "on"

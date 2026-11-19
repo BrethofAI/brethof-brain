@@ -614,13 +614,13 @@ def line(s: float, rid: str, e: dict) -> str:
     if e["chat"]:
         ts = str(r.get("ts") or "")[:16]
         txt = " ".join((r.get("text") or "").split())[:240]
-        return (f"[{s:.0f}] [chat {r.get('project')}_chat/{r.get('role', '-')}] "
+        return (f"[{s:.0f}] [chat archive {r.get('project')}_chat/{r.get('role', '-')}] "
                 f"{ts} {(r.get('session_id') or '')[:8]}: {txt}")
     title = r.get("title") or rid
     content = " ".join((r.get("content") or "").split())[:200]
     upd = str(r.get("ts") or "")[:10]
     tag = "↪linked " if e.get("graph_score") is not None else ("📖 " if e.get("pb_score") is not None else "")
-    return (f"[{s:.0f}] {tag}[{r.get('project')}/{r.get('type', '')}] {rid} — "
+    return (f"[{s:.0f}] {tag}[curated record {r.get('project')}/{r.get('type', '')}] {rid} — "
             f"{title}: {content} (upd {upd})")
 
 
@@ -652,12 +652,12 @@ def history_section(cur, query_vec, query_text: str, project: str = "",
                                     since=since, until=until)
     if not lines:
         return ""
-    out = ["— HISTORY (decision lines: what was decided, tried or dropped, each on its day — "
-           "check a line is still current before acting on it):"]
+    out = ["— DECISION GRAPH (what was decided, tried, rejected or dropped, each on its day and "
+           "for its own situation; history, not a rule — check a line is still current before acting on it):"]
     for d in lines:
         why = " ".join((d.get("why") or "").split())
         what = " ".join((d.get("what") or "").split())
-        out.append(f"[line {d['day'] or '?'}] {d['kind']} ({d['project']}): {what[:300]}"
+        out.append(f"[decision graph {d['day'] or '?'}] {d['kind']} ({d['project']}): {what[:300]}"
                    + (f" — why: {why[:200]}" if why else ""))
     return "\n".join(out)
 

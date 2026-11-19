@@ -125,6 +125,10 @@ def connect(return_url: str = "", wait_s: int = 900) -> int:
 
     port = os.environ.get("HUB_FRONT_PORT", "8600")
     tok = open(os.environ.get("HUB_ADMIN_TOKEN_FILE", "/srv/hub/admin-token")).read().strip()
+    if tok.startswith("#"):
+        print("FAILED the settings password was changed by its owner; "
+              "connect from the settings page instead", flush=True)
+        return 1
 
     def call(path: str) -> dict:
         req = urllib.request.Request(f"http://127.0.0.1:{port}/admin/api/{path}", data=b"{}",

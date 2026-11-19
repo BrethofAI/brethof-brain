@@ -154,6 +154,29 @@ SEED_RULES: dict[str, dict[str, str]] = {
             "an item removes it and puts the result where it belongs. The "
             "methods are the customer's to edit."),
     },
+    # THREE KINDS, EACH BY ITS NAME (founder 2026-11-19): an agent in ms
+    # quoted a curated line back to him as "a rule", and a curated
+    # 'constraint' record held the training dataset back for days.
+    "seed_three_kinds": {
+        "title": "★SEED — Three kinds of memory, each named: rule, curated record, decision graph",
+        "content": (
+            "Everything the Brain hands you says what it is. "
+            "RULE: standing law, holding from now on in every situation. Only "
+            "rules are law; they come from the rules block and lines labelled "
+            "rule, written only through save_rule. "
+            "CURATED RECORD: what the Brain kept from conversation, as it stood "
+            "when said: facts, decisions, traps, preferences. Whoever said it, "
+            "person or agent, it is memory, not a rule; a decision in it was "
+            "made for its own situation. "
+            "DECISION GRAPH: the history, line by line: what was decided, "
+            "tried, rejected or dropped on a day, and why. Not a rule either: "
+            "it shows what was chosen and what already failed. "
+            "CHAT ARCHIVE: everything said, raw. "
+            "Never call a record or a line a rule, and never say a rule forbids "
+            "something unless a rule says it. When what the person asks now "
+            "goes against a record or a line, say what it says and when, then "
+            "do what they ask now."),
+    },
     "seed_rules_are_law": {
         "title": "★SEED — Rules TEACH the Brain — exactly two kinds",
         "content": (

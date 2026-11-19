@@ -413,7 +413,7 @@ def rule_reminder(rule: dict | None) -> str:
     if not body:
         return ""
     return (f"**Brain — rule in force, this prompt touches it** "
-            f"(injected context, not the user's words):\n"
+            f"(rule: standing law for every situation; injected context, not the user's words):\n"
             f"- **{title}** — {destutter(title, body)}")
 
 
@@ -432,8 +432,9 @@ def proposal_line(r: dict | None) -> str:
 # Measured before it shipped (scripts/ops/graph_ab.py, headless Claude Code
 # on the 27B, 97 re-proposals, blind): caught 41 → 76, missed 26 → 7,
 # controls misled 2 → 0 of 20.
-HISTORY_HEAD = ("**Brain — history near this prompt** (decisions, attempts and rejections from earlier "
-                "sessions, found by meaning, most relevant first; most will not bear on this prompt). "
+HISTORY_HEAD = ("**Brain — decision graph, lines near this prompt** (decision graph: what was decided, "
+                "tried, rejected or dropped on a day, each for its own situation, found by meaning, most "
+                "relevant first; most will not bear on this prompt. History, not rules.) "
                 "If one does, say so before acting — what was decided or tried, when, and why.")
 
 
@@ -457,12 +458,12 @@ def record_block(rid: str, row: dict, room: int) -> str:
     """One injected record: WHOLE if it fits in `room`, else a one-line
     pointer — never a cut body (a model uses cut text as if complete)."""
     title = row.get("title") or rid
-    head = (f"**Brain match — FULL record {rid}** "
-            f"(injected context; upd {str(row.get('ts') or '')[:10]}; "
-            f"verify currency, recall for more):")
+    head = (f"**Brain — curated record {rid}** "
+            f"(curated record: kept from conversation, true as of upd {str(row.get('ts') or '')[:10]}; "
+            f"not a rule; verify currency, recall for more):")
     body = " ".join((row.get("content") or "").split())
     block = f"{head}\n{title}\n{body}"
     if len(block) <= room:
         return block
-    return (f"**Brain match — record {rid} is too large to inject; "
+    return (f"**Brain — curated record {rid} is too large to inject; "
             f"READ IT NOW: get_memory('{rid}')**\n{title}")

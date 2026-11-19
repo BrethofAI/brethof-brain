@@ -49,8 +49,8 @@ def test_ordinary_meta_keys_still_pass_the_flag_check():
 
 
 def test_seed_set_shape():
-    assert len(hj.SEED_RULES) == 5, ("seed set stays deliberately SMALL (the ledger seed joined 2026-09-04; "
-                                     "the standing documents 2026-09-29, founder 2026-09-28)")
+    assert len(hj.SEED_RULES) == 6, ("seed set stays deliberately SMALL (the ledger seed joined 2026-09-04; "
+                                     "the standing documents 2026-09-29, founder 2026-09-28; the three kinds 2026-11-19)")
     for rid, r in hj.SEED_RULES.items():
         assert rid.startswith("seed_"), rid
         assert r["title"].startswith("★SEED — "), rid

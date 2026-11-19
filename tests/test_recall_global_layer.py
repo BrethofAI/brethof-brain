@@ -71,7 +71,7 @@ def test_the_decision_lines_ride_under_recall_and_walls_hold(tenant, monkeypatch
         c.commit()
         monkeypatch.setattr("core.embed.embed_one", lambda *a, **k: None)
         text = recall_pg.recall_text(c, None, "sell an unlimited heal add-on", project="brain", include_chat=False)
-        assert "— HISTORY" in text and "[line 2026-09-03] rejected (brain)" in text and "why: unlimited heal" in text
+        assert "— DECISION GRAPH" in text and "[decision graph 2026-09-03] rejected (brain)" in text and "why: unlimited heal" in text
         assert "(ms)" not in text
         # unscoped: every project; scoped to ms: brain's line never shows
         allp = recall_pg.history_section(cur, None, "unlimited heal", project="")

@@ -113,7 +113,7 @@ def test_rules_for_hands_a_box_its_law_and_the_seeds():
             ("r_tpl", "T", "c", "u_%", 1, "2026-09-02"),
             ("purpose_web", "★ PROJECT PURPOSE — web", "what web is", "web", 1, "x")]
     got = {r["rule_id"] for r in jobs.rules_for(rows, "web")}
-    assert got == {"r_all", "r_web", "purpose_web", "seed_organize_by_project", "seed_four_doors", "seed_ledger_is_the_catcher", "seed_standing_documents", "seed_rules_are_law"}
+    assert got == {"r_all", "r_web", "purpose_web", "seed_organize_by_project", "seed_four_doors", "seed_ledger_is_the_catcher", "seed_standing_documents", "seed_three_kinds", "seed_rules_are_law"}
     assert {r["rule_id"] for r in jobs.rules_for(rows, "u_alice")} >= {"r_all", "r_tpl"}
     assert "r_web" not in {r["rule_id"] for r in jobs.rules_for(rows, "u_alice")}
     assert len(jobs.rules_for(rows, "")) == len(rows) + len(jobs.SEED_RULES)

@@ -79,6 +79,17 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
   echo "host all all 0.0.0.0/0 scram-sha-256" >> "$PGDATA/pg_hba.conf"
 fi
 
+# A MEMORY MADE BY ANOTHER POSTGRES MAJOR never starts here (2026-11-19, the
+# storage moved 18 -> 19): Postgres would refuse with a line deep in its own
+# log inside the encrypted directory, and the storage would just look dead.
+have=$(cat "$PGDATA/PG_VERSION")
+want=$(postgres --version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+if [ "$have" != "$want" ]; then
+  echo "brain-db: this memory was made by Postgres $have and this image runs Postgres $want." >&2
+  echo "brain-db: it cannot open it directly. Move the memory across with a dump and restore (see the upgrade notes); nothing was changed." >&2
+  exit 1
+fi
+
 # LOGS GO INSIDE THE ENCRYPTED DIRECTORY. Postgres logs carry query text; in
 # plaintext beside the ciphertext they would undo the whole design.
 exec postgres -D "$PGDATA" \

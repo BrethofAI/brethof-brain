@@ -255,6 +255,14 @@ async def admin_password(request: Request) -> Response:
     if len(pw) < 12:
         return JSONResponse({"ok": False, "why": "use at least 12 characters"}, status_code=400)
     await models.set_many({"_admin_hash": hashlib.sha256(pw.encode()).hexdigest()})
+    # the installer's password file must not go on claiming to be the password
+    try:
+        fd = os.open(ADMIN_TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            fh.write("# the owner set their own password on the settings page; to reset it: "
+                     "python -m hub.local reset-password\n")
+    except OSError as e:
+        log(f"settings password changed, but {ADMIN_TOKEN_FILE} could not be cleared: {e}")
     r = JSONResponse({"ok": True})
     r.set_cookie(COOKIE, pw, httponly=True, samesite="strict",
                  secure=request.url.scheme == "https", max_age=30 * 86400)
