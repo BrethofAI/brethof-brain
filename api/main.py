@@ -552,8 +552,11 @@ def stop(payload: dict, tenant: str = Depends(resolve_caller),
         # a compact's re-flush re-sends turns it already holds (2026-09-28).
         from core import hubfeed
         feeding = bool(quota.may_learn(state) and session_id and hubfeed.active())
-        fresh = archive.unseen(session_id, turns) if feeding else []
-        n = archive.archive_turns(project, session_id, turns)
+        # what the archive took for the first time, under the numbers it
+        # stored them at (a restarted client's turns move to the end)
+        placed: list = []
+        n = archive.archive_turns(project, session_id, turns, placed=placed)
+        fresh = placed if feeding else []
         # METERING-FIRST (founder 2026-07-30, panel showed him "0 messages"):
         # count EVERY exchange, plan or not — the number must be reality for
         # owner/static traffic too. Enforcement stays plan-gated in

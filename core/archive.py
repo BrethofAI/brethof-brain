@@ -125,7 +125,47 @@ def unseen(session_id: str, turns: list[dict]) -> list[dict]:
     return [t for i, t in enumerate(marked) if t["index"] not in have and i not in rep]
 
 
-def archive_turns(project: str, session_id: str, turns: list[dict]) -> int:
+
+def _place(cur, project: str, session_id: str, rows: list, srcs: list):
+    """Drop retries and move a turn whose number is held by OTHER text — with
+    the rest of its batch — to the session's end.
+
+    A retry is the same number and the same text, or (2026-11-19, found by the
+    live probe) the whole moved run again: a restarted client re-sends a
+    spooled batch under its own numbers, and the run already sits at the end."""
+    import hashlib
+    cur.execute("SELECT turn_index, md5(text) FROM chat WHERE session_id = %s AND turn_index = ANY(%s);",
+                [session_id, [r[2] for r in rows]])
+    held = dict(cur.fetchall())
+    if not held:
+        return rows, srcs
+    md5 = [hashlib.md5(r[4].encode()).hexdigest() for r in rows]
+    # same number, same text: already stored
+    keep = [i for i, r in enumerate(rows) if held.get(r[2]) != md5[i]]
+    rows = [rows[i] for i in keep]; srcs = [srcs[i] for i in keep]; md5 = [md5[i] for i in keep]
+    k = next((i for i, r in enumerate(rows) if r[2] in held), None)
+    if k is None:
+        return rows, srcs
+    run = [(rows[i][3], md5[i]) for i in range(k, len(rows))]
+    cur.execute("SELECT turn_index, role, md5(text) FROM chat WHERE session_id = %s AND md5(text) = ANY(%s) "
+                "ORDER BY turn_index;", [session_id, list({h for _, h in run})])
+    at = {int(i): (r, h) for i, r, h in cur.fetchall()}
+    for start in at:
+        if all(at.get(start + j) == run[j] for j in range(len(run))):
+            print(f"[archive] {project}/{session_id}: {len(run)} re-sent turn(s) already stored "
+                  f"at {start}.. — not stored again", flush=True)
+            return rows[:k], srcs[:k]
+    cur.execute("SELECT coalesce(max(turn_index), -1) FROM chat WHERE session_id = %s;", [session_id])
+    nxt = max(int(cur.fetchone()[0]), max(r[2] for r in rows)) + 1
+    moved = []
+    for r in rows[k:]:
+        moved.append((r[0], r[1], nxt, r[3], r[4], r[5])); nxt += 1
+    print(f"[archive] {project}/{session_id}: {len(moved)} turn(s) arrived under numbers "
+          f"the session already used for other text — stored at the end", flush=True)
+    return rows[:k] + moved, srcs
+
+def archive_turns(project: str, session_id: str, turns: list[dict],
+                  placed: list | None = None) -> int:
     """Write a batch of turns. Returns the number actually inserted.
 
     turns: [{index:int, line_type|role:'user'|'assistant', text:str, ...}]
@@ -133,11 +173,22 @@ def archive_turns(project: str, session_id: str, turns: list[dict]) -> int:
     Re-archiving the same batch is a no-op rather than a duplicate — the client
     retries on any non-ok status, and UNIQUE (session_id, turn_index) is what
     makes that safe.
+
+    A NUMBER TAKEN BY OTHER TEXT IS A NEW TURN (2026-11-19). An adapter that
+    restarts with the same session id numbers from 0 again (AgentHooks keeps
+    its count in memory), and ON CONFLICT DO NOTHING dropped every new turn
+    until the count passed the old one — the conversation after a restart was
+    not archived, with an "INSERT SHORTFALL" line the only trace. Now the
+    same number AND the same text is a retry (skipped, as before); the same
+    number with different text goes on the END of the session, and so does
+    the rest of its batch, so the order holds. `placed`, when given, receives
+    each stored turn with the index it was stored under.
     """
     if not turns or not session_id:
         return 0
     from .chatkind import is_recap
     rows = []
+    srcs: list[dict] = []
     recaps = 0
     for i, t in enumerate(turns):
         text = t.get("text") or ""
@@ -152,6 +203,7 @@ def archive_turns(project: str, session_id: str, turns: list[dict]) -> int:
         text = text.replace("\x00", "")
         rows.append((project, session_id, int(t.get("index", i)),
                      t.get("line_type") or t.get("role") or "user", text, said_at(t)))
+        srcs.append(t)
 
     if recaps:
         print(f"[archive] {project}/{session_id}: {recaps} compaction recap(s) not stored", flush=True)
@@ -165,15 +217,22 @@ def archive_turns(project: str, session_id: str, turns: list[dict]) -> int:
             print(f"[archive] {project}/{session_id}: {len(dup)} re-sent turn(s) the session already holds "
                   f"(same text, new number) — not stored", flush=True)
             rows = [r for i, r in enumerate(rows) if i not in dup]
+            srcs = [t for i, t in enumerate(srcs) if i not in dup]
             if not rows:
                 conn.commit()
                 return 0
+        rows, srcs = _place(cur, project, session_id, rows, srcs)
+        if not rows:
+            conn.commit()
+            return 0
         cur.executemany(
             "INSERT INTO chat (project, session_id, turn_index, role, text, ts) "
             "VALUES (%s, %s, %s, %s, %s, coalesce(%s, now())) "
             "ON CONFLICT (session_id, turn_index) DO NOTHING;", rows)
         n = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
         conn.commit()
+    if placed is not None:
+        placed.extend(dict(t, index=r[2]) for r, t in zip(rows, srcs))
     if n != len(rows):
         # NEVER SILENT (2026-09-01: a scale storm lost 4 of 400 turns with
         # every reply reading ok — this line is how the next one names

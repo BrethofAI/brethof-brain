@@ -39,6 +39,8 @@ def test_a_recap_is_not_written_to_the_archive():
     class Cur:
         rowcount = 1
         def executemany(self, sql, rows): sent.extend(rows)
+        def execute(self, sql, params=None): pass      # nothing held yet
+        def fetchall(self): return []
     class Conn:
         def __enter__(self): return self
         def __exit__(self, *a): return False
