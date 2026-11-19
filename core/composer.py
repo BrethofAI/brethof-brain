@@ -246,11 +246,11 @@ async def ambient(ask: Ask, match: Match, purpose_of: Purpose, project: str, ses
     hub_rule, verdict = await shared(key, "hub", lambda: match(prompt))
     if verdict == "refused":
         return "**Brain** (injected context, not the user's words): " + T.REFUSED
-    if part == HISTORY_PART:
-        # its own channel: no cooldown (a re-proposal can come back any
-        # time), no stamp; the box logs what it handed out
+    async def _history_lines() -> list[dict]:
+        """The decisions near this prompt: its own channel, no cooldown (a
+        re-proposal can come back any time), no stamp."""
         if not graph:
-            return ""
+            return []
         lines = await _rows(ask, "history_near", {"project": project, "query": prompt,
                                                   "session_id": sid, "k": HISTORY_K}, "lines") or []
         # `bears(prompt, lines)` → one p per line, or None (no Jev here)
@@ -265,7 +265,30 @@ async def ambient(ask: Ask, match: Match, purpose_of: Purpose, project: str, ses
             lines = [d for d, s in zip(lines, scores) if s >= HISTORY_BAR]
         else:
             lines = lines[:HISTORY_FALLBACK_K]
-        return T.history_block(lines)
+        return lines
+
+    if part == HISTORY_PART:
+        return T.history_block(await _history_lines())
+    # PART 0 CARRIES THE HISTORY TOO (2026-11-19): every single-hook
+    # harness (Codex, OpenCode, Cline, Hermes, Amp, OpenClaw, dsh...) asks
+    # part 0, and part 0 never had the decision lines that only part 7 did
+    # (found 2026-11-18: a decided codename came back in part 7 and
+    # nowhere in part 0). Searched alongside the records, added last.
+    hist_task = asyncio.create_task(_history_lines()) if part == 0 else None
+
+    async def _with_history(text: str) -> str:
+        if hist_task is None:
+            return text
+        try:
+            lines = await hist_task
+        except Exception as e:
+            print(f"[composer] history for {project} failed: {type(e).__name__}: {e}", flush=True)
+            return text
+        room = T.HOOK_BUDGET - (len(text) + 2 if text else 0)
+        block = T.history_block(lines, room) if lines else ""
+        if not block or block.strip() == T.HISTORY_HEAD.strip():
+            return text
+        return (text + "\n\n" + block) if text else block
 
     async def _recall():
         # The previous user turn folded in (a follow-up carries its topic)
@@ -380,7 +403,7 @@ async def ambient(ask: Ask, match: Match, purpose_of: Purpose, project: str, ses
         strong = ([playbook] if playbook else []) + records
         strong = strong[:RECORD_SLOTS]
     if not strong and not rule_block and not desc_block and not prop_block:
-        return ""
+        return await _with_history("")
     stamp_ids += [h["rid"] for h in strong]
     if stamp_ids:
         await _rows(ask, "stamp", {"session_id": sid, "turn": turn, "ids": stamp_ids}, "")
@@ -394,4 +417,4 @@ async def ambient(ask: Ask, match: Match, purpose_of: Purpose, project: str, ses
     for h in strong:
         room = T.HOOK_BUDGET - sum(len(x) + 1 for x in lines)
         lines.append(T.record_block(h["rid"], h.get("row") or {}, room))
-    return "\n".join(lines)
+    return await _with_history("\n".join(lines))

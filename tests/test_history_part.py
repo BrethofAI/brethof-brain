@@ -63,10 +63,27 @@ def test_no_lines_no_block():
     assert text == ""
 
 
-def test_the_other_parts_never_ask_for_history():
-    for part in (0, 1, 2, composer.PARTS):
+def test_the_record_parts_never_ask_for_history():
+    for part in (1, 2, composer.PARTS):
         _, asked = _ambient(part, True, _lines(3))
         assert not any(c == "history_near" for c, _ in asked), part
+
+
+# ── part 0 (2026-11-19): every single-hook harness asks part 0 ──────────────
+def test_part_0_carries_the_history_for_single_hook_harnesses():
+    text, asked = _ambient(0, True, _lines(3))
+    assert sum(c == "history_near" for c, _ in asked) == 1
+    assert T.HISTORY_HEAD in text and "Chose X over Y 2" in text
+
+
+def test_part_0_without_the_add_on_has_no_history():
+    text, asked = _ambient(0, False, _lines(3))
+    assert T.HISTORY_HEAD not in text
+
+
+def test_part_0_history_stays_inside_the_hook_budget():
+    text, _ = _ambient(0, True, _lines(60, what="y" * 300))
+    assert T.HISTORY_HEAD in text and len(text) <= T.HOOK_BUDGET
 
 
 def test_a_line_that_does_not_fit_ends_the_block_never_cut():
