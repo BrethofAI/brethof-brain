@@ -27,7 +27,7 @@ module per chip type, in `gate/<arch>/`. Its source is not published.
 
 ## Licence
 
-Elastic License 2.0 (ELv2). See [LICENSE](LICENSE). This is a source-available
+Copyright 2026 Brethof AI. Elastic License 2.0 (ELv2). See [LICENSE](LICENSE). This is a source-available
 licence: you may use, copy and run the software for any purpose, but you may
 not offer it to others as a hosted or managed service, and you may not change,
 disable or circumvent the licence-key part.
